@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CWAPP - Car Wash Manager</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg:#0a0e17; --cyan:#00c6ff; --blue:#0072ff; --green:#00e5a0; --purple:#c084fc; --amber:#ffb347; --text:#e8f1ff; }
+    *{box-sizing:border-box;} body{margin:0;font-family:'DM Sans',sans-serif;background:radial-gradient(circle at top right,#122036 0%,var(--bg) 50%);color:var(--text);} 
+    .wrap{max-width:1280px;margin:0 auto;padding:20px;} .glass{backdrop-filter:blur(12px);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:18px;padding:14px 18px;}
+    h1,h2,.stat-number{font-family:'Bebas Neue',sans-serif;letter-spacing:1px;margin:0;} h1{font-size:42px;background:linear-gradient(90deg,var(--cyan),var(--blue));-webkit-background-clip:text;color:transparent;}
+    .top-stats{margin-top:16px;display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:12px;}
+    .tile{padding:14px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);transition:all .25s;} .tile:hover{transform:translateY(-2px);} .stat-number{font-size:34px;line-height:1;}
+    .muted{opacity:.75;font-size:13px;} .green{color:var(--green);} .purple{color:var(--purple);} .amber{color:var(--amber);} 
+    .layout{display:grid;grid-template-columns:380px 1fr;gap:16px;margin-top:16px;} .panel{padding:16px;border-radius:16px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);}
+    .vehicle-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:8px;} .vehicle-btn{border:1px solid rgba(255,255,255,.12);background:#101a2d;color:var(--text);padding:10px;border-radius:10px;cursor:pointer;transition:.2s;}
+    .vehicle-btn.active,.vehicle-btn:hover{border-color:var(--cyan);box-shadow:0 0 0 1px rgba(0,198,255,.2);} input,select{width:100%;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.14);background:#0f1627;color:var(--text);} 
+    .form-grid{display:grid;gap:10px;} .btn-primary{background:linear-gradient(90deg,var(--cyan),var(--blue));border:none;color:white;padding:11px;border-radius:10px;cursor:pointer;font-weight:700;}
+    .earn-row{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06);} .avatar{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:#162640;font-weight:700;}
+    .progress{height:7px;background:#111b30;border-radius:999px;overflow:hidden;margin-top:4px;} .progress > span{display:block;height:100%;background:linear-gradient(90deg,var(--cyan),var(--blue));}
+    .toolbar{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px;} .filters{display:flex;gap:8px;}
+    .chip{padding:8px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px;cursor:pointer;background:#101a2d;} .chip.active{border-color:var(--cyan);}
+    table{width:100%;border-collapse:collapse;} th,td{text-align:left;padding:10px 8px;border-bottom:1px solid rgba(255,255,255,.08);font-size:14px;} th{font-size:12px;opacity:.78;text-transform:uppercase;}
+    .status{padding:4px 8px;border-radius:999px;font-size:12px;text-transform:capitalize;} .queued{background:#374151;} .washing{background:rgba(255,179,71,.2);color:var(--amber);} .done{background:rgba(0,229,160,.2);color:var(--green);} 
+    .actions button{margin-right:6px;padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:#17233a;color:white;cursor:pointer;} .actions button:hover{opacity:.9;}
+    .pending-commission{opacity:.7;font-style:italic;} .done-commission{font-weight:700;color:var(--purple);} .toasts{position:fixed;right:16px;top:16px;display:grid;gap:8px;z-index:60;}
+    .toast{background:#10213b;border:1px solid rgba(0,198,255,.35);padding:10px 12px;border-radius:10px;animation:fade .35s ease;} @keyframes fade{from{transform:translateY(-8px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+    .modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;place-items:center;z-index:80;} .modal.open{display:grid;} .modal-card{width:min(460px,92vw);}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="glass"><h1>CWAPP • Car Wash Business Manager</h1><p class="muted">Date: <span id="todayLabel">{{ today }}</span></p></header>
+
+    <section class="top-stats" id="statsBar">
+      <div class="tile"><div class="muted">Today's Jobs</div><div class="stat-number" id="statTodaysJobs">{{ stats.todays_jobs }}</div></div>
+      <div class="tile"><div class="muted">In Progress</div><div class="stat-number amber" id="statInProgress">{{ stats.in_progress }}</div></div>
+      <div class="tile"><div class="muted">Completed</div><div class="stat-number" id="statCompleted">{{ stats.completed }}</div></div>
+      <div class="tile"><div class="muted">Revenue (KES)</div><div class="stat-number green" id="statRevenue">{{ stats.revenue }}</div></div>
+      <div class="tile"><div class="muted">Total Staff Pay (KES)</div><div class="stat-number purple" id="statPay">{{ stats.total_staff_pay }}</div></div>
+    </section>
+
+    <section class="layout">
+      <aside>
+        <div class="panel">
+          <h2>New Wash Entry</h2>
+          <form id="jobForm" class="form-grid">
+            <input type="hidden" id="vehicleType" value="Saloon">
+            <div class="vehicle-grid">
+              {% for v in vehicles %}
+              <button type="button" class="vehicle-btn {% if loop.first %}active{% endif %}" data-vehicle="{{ v.0 }}" data-price="{{ v.1 }}">{{ v.0 | icon }} {{ v.0 }} <small class="muted">KES {{ v.1 }}</small></button>
+              {% endfor %}
+            </div>
+            <input id="plate" placeholder="Number Plate" required />
+            <select id="staff" required>
+              <option value="">Select staff</option>
+              {% for s in staff %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+            </select>
+            <input id="amount" type="number" min="1" value="500" required />
+            <div class="muted">Staff earns: <strong id="commissionPreview">KES 150</strong></div>
+            <button class="btn-primary" type="submit">Add Job</button>
+          </form>
+        </div>
+
+        <div class="panel" style="margin-top:14px;">
+          <h2>Daily Staff Earnings</h2>
+          <div id="earningsList">
+            {% set_global max_commission = 1 %}
+            {% for e in earnings %}{% if e.commission_total > max_commission %}{% set_global max_commission = e.commission_total %}{% endif %}{% endfor %}
+            {% for e in earnings %}
+            <div class="earn-row">
+              <div class="avatar">{{ e.staff | slice(start=0,end=1) | upper }}</div>
+              <div>
+                <div><strong>{{ e.staff }}</strong> · {{ e.job_count }} jobs · KES {{ e.total_wash_value }}</div>
+                <div class="progress"><span style="width:{{ (e.commission_total * 100 / max_commission) | round }}%"></span></div>
+              </div>
+              <div class="purple"><strong>KES {{ e.commission_total }}</strong></div>
+            </div>
+            {% endfor %}
+          </div>
+          <div style="margin-top:8px" class="muted">Total payout: <strong id="earningsFooter">KES {{ stats.total_staff_pay }}</strong></div>
+        </div>
+      </aside>
+
+      <main class="panel">
+        <div class="toolbar">
+          <div class="filters" id="statusFilters">
+            <button class="chip active" data-filter="all">All</button>
+            <button class="chip" data-filter="queued">Queued</button>
+            <button class="chip" data-filter="washing">Washing</button>
+            <button class="chip" data-filter="done">Done</button>
+          </div>
+          <input id="searchInput" placeholder="Search by plate or staff" style="max-width:270px" />
+        </div>
+        <table>
+          <thead><tr><th>#</th><th>Vehicle</th><th>Plate</th><th>Staff</th><th>Wash Amount</th><th>Commission (30%)</th><th>Status</th><th>Time In</th><th>Actions</th></tr></thead>
+          <tbody id="jobsBody">
+            {% for j in jobs %}
+            <tr data-id="{{ j.id }}" data-status="{{ j.status }}">
+              <td>{{ j.id }}</td>
+              <td>{{ j.vehicle_type | icon }} {{ j.vehicle_type }}</td>
+              <td>{{ j.plate }}</td>
+              <td>{{ j.staff }}</td>
+              <td>KES {{ j.amount }}</td>
+              <td>{% if j.status == "done" %}<span class="done-commission">KES {{ j.commission }}</span>{% else %}<span class="pending-commission">Pending · KES {{ j.commission }}</span>{% endif %}</td>
+              <td><span class="status {{ j.status }}">{{ j.status }}</span></td>
+              <td>{{ j.time_in | truncate(length=19,end="") | replace(from="T",to=" ") }}</td>
+              <td class="actions"></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </main>
+    </section>
+  </div>
+
+  <div class="toasts" id="toasts"></div>
+  <div class="modal" id="receiptModal"><div class="panel modal-card"><h2>Receipt</h2><div id="receiptContent"></div><button class="btn-primary" onclick="window.print()">Print</button> <button class="chip" onclick="closeReceipt()">Close</button></div></div>
+
+  <script>
+    const today = "{{ today }}";
+    const state = {
+      jobs: {{ jobs | json_encode | safe }},
+      earnings: {{ earnings | json_encode | safe }},
+      stats: {{ stats | json_encode | safe }},
+      filter: 'all',
+      search: ''
+    };
+
+    const staff = {{ staff | json_encode | safe }};
+    const suggested = { Saloon: 500, Sedan: 500, SUV: 800, Lorry: 1500 };
+    const icons = { Saloon:'🚗', Sedan:'🚗', SUV:'🚙', Lorry:'🚚' };
+
+    const jobsBody = document.getElementById('jobsBody');
+    const toasts = document.getElementById('toasts');
+
+    function toast(msg) { const t=document.createElement('div'); t.className='toast'; t.textContent=msg; toasts.appendChild(t); setTimeout(()=>t.remove(),2500); }
+    function fmtKES(v){ return `KES ${Number(v||0).toLocaleString()}`; }
+    function initials(name){ return (name || '?').slice(0,1).toUpperCase(); }
+
+    function renderStats() {
+      document.getElementById('statTodaysJobs').textContent = state.stats.todays_jobs ?? 0;
+      document.getElementById('statInProgress').textContent = state.stats.in_progress ?? 0;
+      document.getElementById('statCompleted').textContent = state.stats.completed ?? 0;
+      document.getElementById('statRevenue').textContent = state.stats.revenue ?? 0;
+      document.getElementById('statPay').textContent = state.stats.total_staff_pay ?? 0;
+      document.getElementById('earningsFooter').textContent = fmtKES(state.stats.total_staff_pay ?? 0);
+    }
+
+    function actionsMarkup(job){
+      let next = '';
+      if(job.status === 'queued') next = `<button onclick="advanceStatus(${job.id}, 'washing')">Start</button>`;
+      if(job.status === 'washing') next = `<button onclick="advanceStatus(${job.id}, 'done')">Complete</button>`;
+      return `${next}<button onclick="deleteJob(${job.id})">Delete</button>`;
+    }
+
+    function renderJobs(){
+      const term = state.search.toLowerCase();
+      const rows = state.jobs.filter(j => (state.filter === 'all' || j.status === state.filter) &&
+        (!term || j.plate.toLowerCase().includes(term) || j.staff.toLowerCase().includes(term)));
+      jobsBody.innerHTML = rows.map(j => `
+        <tr data-id="${j.id}" data-status="${j.status}">
+          <td>${j.id}</td><td>${icons[j.vehicle_type] || '🚘'} ${j.vehicle_type}</td><td>${j.plate}</td><td>${j.staff}</td>
+          <td>${fmtKES(j.amount)}</td>
+          <td>${j.status === 'done' ? `<span class="done-commission">${fmtKES(j.commission)}</span>` : `<span class="pending-commission">Pending · ${fmtKES(j.commission)}</span>`}</td>
+          <td><span class="status ${j.status}">${j.status}</span></td>
+          <td>${j.time_in.replace('T',' ').slice(0,19)}</td>
+          <td class="actions">${actionsMarkup(j)}</td>
+        </tr>`).join('');
+    }
+
+    function renderEarnings(){
+      const box = document.getElementById('earningsList');
+      const max = Math.max(...state.earnings.map(e => e.commission_total), 1);
+      box.innerHTML = state.earnings.map(e => `
+        <div class="earn-row">
+          <div class="avatar">${initials(e.staff)}</div>
+          <div><div><strong>${e.staff}</strong> · ${e.job_count} jobs · ${fmtKES(e.total_wash_value)}</div>
+          <div class="progress"><span style="width:${Math.round((e.commission_total * 100) / max)}%"></span></div></div>
+          <div class="purple"><strong>${fmtKES(e.commission_total)}</strong></div>
+        </div>
+      `).join('') || '<p class="muted">No completed jobs yet today.</p>';
+    }
+
+    async function refreshMeta(){
+      const [statsRes, earnRes, jobsRes] = await Promise.all([
+        fetch(`/api/stats?date=${today}`),
+        fetch(`/api/earnings?date=${today}`),
+        fetch(`/api/jobs?date=${today}`)
+      ]);
+      state.stats = await statsRes.json();
+      state.earnings = await earnRes.json();
+      state.jobs = await jobsRes.json();
+      renderStats(); renderEarnings(); renderJobs();
+    }
+
+    async function advanceStatus(id, status){
+      const res = await fetch(`/api/jobs/${id}/status`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status})});
+      if(!res.ok){toast('Status update failed');return;}
+      const job = await res.json();
+      toast(`Job #${id} moved to ${status}`);
+      if(status === 'done') showReceipt(job);
+      await refreshMeta();
+    }
+
+    async function deleteJob(id){
+      const res = await fetch(`/api/jobs/${id}`, {method:'DELETE'});
+      if(!res.ok){toast('Delete failed');return;}
+      toast(`Deleted job #${id}`);
+      await refreshMeta();
+    }
+
+    function showReceipt(job){
+      const content = document.getElementById('receiptContent');
+      content.innerHTML = `<p>Vehicle: <strong>${job.vehicle_type}</strong></p><p>Plate: <strong>${job.plate}</strong></p><p>Staff: <strong>${job.staff}</strong></p><p>Customer pays: <strong>${fmtKES(job.amount)}</strong></p><p>Staff commission: <strong class="purple">${fmtKES(job.commission)}</strong></p>`;
+      document.getElementById('receiptModal').classList.add('open');
+    }
+    function closeReceipt(){ document.getElementById('receiptModal').classList.remove('open'); }
+    window.closeReceipt = closeReceipt;
+
+    document.querySelectorAll('.vehicle-btn').forEach(btn => btn.addEventListener('click', () => {
+      document.querySelectorAll('.vehicle-btn').forEach(v => v.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('vehicleType').value = btn.dataset.vehicle;
+      document.getElementById('amount').value = btn.dataset.price;
+      document.getElementById('commissionPreview').textContent = fmtKES(Math.floor(Number(btn.dataset.price)*0.3));
+    }));
+
+    document.getElementById('amount').addEventListener('input', (e)=>{
+      document.getElementById('commissionPreview').textContent = fmtKES(Math.floor(Number(e.target.value||0)*0.3));
+    });
+    document.getElementById('plate').addEventListener('input', (e)=>{ e.target.value = e.target.value.toUpperCase(); });
+
+    document.getElementById('jobForm').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const payload = {
+        vehicle_type: document.getElementById('vehicleType').value,
+        plate: document.getElementById('plate').value.trim().toUpperCase(),
+        staff: document.getElementById('staff').value,
+        amount: Number(document.getElementById('amount').value)
+      };
+      const res = await fetch('/api/jobs', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+      if(!res.ok){ const er = await res.json(); toast(er.error || 'Create failed'); return; }
+      toast('Wash job added');
+      e.target.reset();
+      document.getElementById('amount').value = suggested[document.getElementById('vehicleType').value];
+      document.getElementById('commissionPreview').textContent = fmtKES(Math.floor(Number(document.getElementById('amount').value)*0.3));
+      await refreshMeta();
+    });
+
+    document.querySelectorAll('#statusFilters .chip').forEach(chip => chip.addEventListener('click', ()=>{
+      document.querySelectorAll('#statusFilters .chip').forEach(x=>x.classList.remove('active'));
+      chip.classList.add('active');
+      state.filter = chip.dataset.filter;
+      renderJobs();
+    }));
+
+    document.getElementById('searchInput').addEventListener('input', (e)=>{ state.search = e.target.value.trim(); renderJobs(); });
+
+    state.jobs = state.jobs.map(j => ({...j, plate: (j.plate||'').toUpperCase()}));
+    renderStats(); renderEarnings(); renderJobs();
+  </script>
+</body>
+</html>

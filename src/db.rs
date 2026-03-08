@@ -383,3 +383,118 @@ pub fn daily_stats(pool: &DbPool, date: &str) -> Result<DailyStats, AppError> {
 
     Ok(stats)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    struct TestCtx {
+        pool: DbPool,
+        path: std::path::PathBuf,
+    }
+
+    impl Drop for TestCtx {
+        fn drop(&mut self) {
+            let _ = fs::remove_file(&self.path);
+        }
+    }
+
+    fn test_ctx() -> TestCtx {
+        let path = std::env::temp_dir().join(format!("cwapp-test-{}.db", uuid::Uuid::new_v4()));
+        let pool = build_pool(path.to_str().expect("temp path should be valid"))
+            .expect("pool should build");
+        TestCtx { pool, path }
+    }
+
+    #[test]
+    fn create_job_persists_commission_at_30_percent() {
+        let ctx = test_ctx();
+        let created = create_job(
+            &ctx.pool,
+            NewJob {
+                vehicle_type: "SUV".into(),
+                plate: "kda123x".into(),
+                staff: "James".into(),
+                amount: 800,
+            },
+        )
+        .expect("job should be created");
+
+        assert_eq!(created.commission, 240);
+        assert_eq!(created.status, "queued");
+        assert_eq!(created.plate, "KDA123X");
+    }
+
+    #[test]
+    fn status_workflow_is_one_direction_only() {
+        let ctx = test_ctx();
+        let created = create_job(
+            &ctx.pool,
+            NewJob {
+                vehicle_type: "Saloon".into(),
+                plate: "KAA999A".into(),
+                staff: "Mary".into(),
+                amount: 500,
+            },
+        )
+        .expect("job should be created");
+
+        let invalid =
+            update_status(&ctx.pool, created.id, "done").expect_err("queued -> done is invalid");
+        assert!(matches!(invalid, AppError::BadRequest(_)));
+
+        let washing =
+            update_status(&ctx.pool, created.id, "washing").expect("queued -> washing should work");
+        assert_eq!(washing.status, "washing");
+
+        let done =
+            update_status(&ctx.pool, created.id, "done").expect("washing -> done should work");
+        assert_eq!(done.status, "done");
+        assert!(done.time_done.is_some());
+    }
+
+    #[test]
+    fn aggregates_only_count_done_jobs() {
+        let ctx = test_ctx();
+
+        let done_job = create_job(
+            &ctx.pool,
+            NewJob {
+                vehicle_type: "SUV".into(),
+                plate: "KCC111C".into(),
+                staff: "Brian".into(),
+                amount: 800,
+            },
+        )
+        .expect("job should be created");
+
+        let _queued_job = create_job(
+            &ctx.pool,
+            NewJob {
+                vehicle_type: "Sedan".into(),
+                plate: "KDD222D".into(),
+                staff: "Brian".into(),
+                amount: 500,
+            },
+        )
+        .expect("job should be created");
+
+        update_status(&ctx.pool, done_job.id, "washing").expect("should advance to washing");
+        update_status(&ctx.pool, done_job.id, "done").expect("should advance to done");
+
+        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+        let stats = daily_stats(&ctx.pool, &today).expect("stats should load");
+        assert_eq!(stats.todays_jobs, 2);
+        assert_eq!(stats.completed, 1);
+        assert_eq!(stats.revenue, 800);
+        assert_eq!(stats.total_staff_pay, 240);
+
+        let earnings = staff_earnings(&ctx.pool, &today).expect("earnings should load");
+        assert_eq!(earnings.len(), 1);
+        assert_eq!(earnings[0].staff, "Brian");
+        assert_eq!(earnings[0].job_count, 1);
+        assert_eq!(earnings[0].total_wash_value, 800);
+        assert_eq!(earnings[0].commission_total, 240);
+    }
+}
